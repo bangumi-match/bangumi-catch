@@ -131,9 +131,9 @@ func saveToFile(userId int, userName string, collectionType int, data []Collecti
 	// Create directory for user
 	var dir string
 	if userName == "" {
-		dir = fmt.Sprintf("user_data/%d", userId)
+		dir = fmt.Sprintf("user_data/%d/%d", userId/100, userId)
 	} else {
-		dir = fmt.Sprintf("user_data/%d_%s", userId, userName)
+		dir = fmt.Sprintf("user_data/%d/%d_%s", userId/100, userId, userName)
 	}
 	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
