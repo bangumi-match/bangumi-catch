@@ -63,6 +63,7 @@ type ApiResponse struct {
 
 func fetchData(userId string, collectionType int) ([]Collection, error) {
 	var result []Collection
+	var mu sync.Mutex
 	offset := 0
 	limit := 20
 
@@ -82,7 +83,9 @@ func fetchData(userId string, collectionType int) ([]Collection, error) {
 		}
 
 		// Append fetched data
+		mu.Lock() // 锁住 result
 		result = append(result, response.Data...)
+		mu.Unlock() // 解锁
 
 		// If there are more pages, recursively fetch the next page
 		if len(response.Data) > 0 && response.Offset+limit < response.Total {
@@ -117,6 +120,7 @@ func fetchDataWithRetry(userId string, collectionType int, wg *sync.WaitGroup, b
 			return data, nil
 		}
 		// 如果是第一次失败
+		time.Sleep(500 * time.Millisecond)
 		if attempt == 0 {
 		} else {
 			// 如果是第二次失败，记录错误并跳过
@@ -243,7 +247,11 @@ func main() {
 			SaucerPadding: " ",
 			BarStart:      "[",
 			BarEnd:        "]",
-		}))
+		}),
+		progressbar.OptionShowCount(), // 显示条目数
+		progressbar.OptionShowIts(),   // 显示条目获取速度
+		progressbar.OptionThrottle(5*time.Second),
+	)
 
 	for _, userId := range userIds {
 		var userName string
@@ -278,7 +286,6 @@ func main() {
 			go func(fetchId string, collectionType int) {
 				collections, err := fetchDataWithRetry(fetchId, collectionType, &wg, bar)
 				if err != nil {
-					// 如果重试两次都失败，则跳过
 					return
 				}
 
@@ -286,7 +293,10 @@ func main() {
 				if err != nil {
 					log.Fatalf("保存数据时出错: %v", err)
 				}
+
+				bar.Add(1) // 在每次请求后更新进度条
 			}(fetchId, i)
+
 		}
 	}
 
