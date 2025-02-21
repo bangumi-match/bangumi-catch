@@ -249,12 +249,18 @@ func main() {
 		var userName string
 		var userIdNumer int
 		var fetchId string
+
 		if _, err := strconv.Atoi(userId); err == nil {
 			userIdNumer, _ = strconv.Atoi(userId)
-			var err error
-			userName, err = getUserName(userId)
-			if err != nil {
-				log.Fatalf("获取用户名时出错: %v", err)
+			for attempt := 0; attempt < 3; attempt++ {
+				userName, err = getUserName(userId)
+				if err == nil {
+					break
+				}
+				if attempt == 2 {
+					log.Printf("获取用户名时出错，用户ID: %s，已跳过此用户\n", userId)
+					continue
+				}
 			}
 			if userName == "" {
 				fetchId = userId
