@@ -129,6 +129,9 @@ func fetchDataWithRetry(userId string, collectionType int, wg *sync.WaitGroup, b
 
 func saveToFile(userId int, userName string, collectionType int, data []Collection) error {
 	// Create directory for user
+	if data == nil || len(data) == 0 {
+		return nil
+	}
 	var dir string
 	if userName == "" {
 		dir = fmt.Sprintf("user_data/%d/%d", userId/100, userId)
