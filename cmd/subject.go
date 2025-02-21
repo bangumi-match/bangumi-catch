@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/gocolly/colly/v2"
+	"github.com/schollz/progressbar/v3"
 	"io/ioutil"
 	"log"
 	"os"
@@ -11,18 +13,19 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/gocolly/colly/v2"
-	"github.com/schollz/progressbar/v3"
 )
 
 type ResponseData map[string]interface{}
 
-func fetchAndSave(id int, wg *sync.WaitGroup, logMutex *sync.Mutex, bar *progressbar.ProgressBar) {
+func fetchAndSave(id int, wg *sync.WaitGroup, logMutex *sync.Mutex, bar *progressbar.ProgressBar, token string) {
 	defer wg.Done()
 
 	url := fmt.Sprintf("https://api.bgm.tv/v0/subjects/%d", id)
 	c := colly.NewCollector()
+
+	c.OnRequest(func(r *colly.Request) {
+		r.Headers.Set("Authorization", "Bearer "+token)
+	})
 
 	c.OnResponse(func(r *colly.Response) {
 		var data ResponseData
@@ -70,8 +73,7 @@ func fetchAndSave(id int, wg *sync.WaitGroup, logMutex *sync.Mutex, bar *progres
 
 	c.Visit(url)
 }
-
-func doWork(ids []int) {
+func doWork(ids []int, token string) {
 	dir := "logs"
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		log.Fatalf("Failed to create logs directory: %v", err)
@@ -97,13 +99,20 @@ func doWork(ids []int) {
 		wg.Add(1)
 		go func(i int) {
 			defer func() { <-sem }()
-			fetchAndSave(i, &wg, &logMutex, bar)
+			fetchAndSave(i, &wg, &logMutex, bar, token)
 		}(id)
 	}
 	wg.Wait()
 }
 
 func main() {
+	var token string
+
+	token = os.Getenv("TOKEN")
+	if token == "" {
+		log.Printf("set env TOKEN to get full access of subjects")
+	}
+
 	var ids []int
 	if _, err := os.Stat("missing.csv"); err == nil {
 		var useCSV string
@@ -143,5 +152,5 @@ func main() {
 		}
 	}
 
-	doWork(ids)
+	doWork(ids, token)
 }

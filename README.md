@@ -5,6 +5,8 @@
 运行cmd中的subject脚本获取条目信息
 运行user脚本获取用户收藏信息
 
+❗：因为bangumi访问某些条目需要登录，所以请[获取token](https://next.bgm.tv/demo/access-token/create)并设置在环境变量中
+
 ## 可以在下载页面下载我已经获取的数据
 
 注：
