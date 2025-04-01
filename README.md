@@ -2,8 +2,7 @@
 获取bangumi条目脚本
 
 ## 使用方法：
-运行cmd中的subject脚本获取条目信息
-运行user脚本获取用户收藏信息
+运行cmd中的main方法即可启动
 
 ❗：因为bangumi访问某些条目需要登录，所以请[获取token](https://next.bgm.tv/demo/access-token/create)并设置在环境变量中
 

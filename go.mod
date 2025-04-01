@@ -1,4 +1,4 @@
-module data
+module bgm-catch
 
 go 1.24
 

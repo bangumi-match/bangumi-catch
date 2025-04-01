@@ -26,7 +26,7 @@ go.work.sum
 
 #Project
 
-subject_data
-user_data
-subject_nsfw_data
-missing.csv
+.idea
+logs
+.venv
+data
