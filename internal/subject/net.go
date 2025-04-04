@@ -12,14 +12,14 @@ import (
 )
 
 // 按日期范围抓取数据
-func fetchByDateRange(dates []struct{ Year, Month int }, token string) []JsonSubjectFile {
+func fetchByDateRange(dates []struct{ Year, Month int }, token string) []JsonSubject {
 	var (
 		wg        sync.WaitGroup
-		results   = make(chan JsonSubjectFile, 1000)
+		results   = make(chan JsonSubject, 1000)
 		dateSem   = make(chan struct{}, 3) // 限制并发日期请求数
 		pageSem   = make(chan struct{}, 5) // 限制分页请求并发数
 		bar       = progressbar.Default(int64(len(dates)))
-		collected []JsonSubjectFile
+		collected []JsonSubject
 	)
 
 	for _, date := range dates {
@@ -35,7 +35,7 @@ func fetchByDateRange(dates []struct{ Year, Month int }, token string) []JsonSub
 				pageSem <- struct{}{}
 
 				var (
-					pageSubjects []JsonSubjectFile
+					pageSubjects []JsonSubject
 					_            error
 					is400        bool
 				)
@@ -55,7 +55,7 @@ func fetchByDateRange(dates []struct{ Year, Month int }, token string) []JsonSub
 				// 响应处理
 				c.OnResponse(func(r *colly.Response) {
 					var responseData struct {
-						Data []JsonSubjectFile `json:"data"`
+						Data []JsonSubject `json:"data"`
 					}
 					if err := json.Unmarshal(r.Body, &responseData); err != nil {
 						log.Printf("日期 %d-%02d offset %d 解析失败: %v", year, month, offset, err)
@@ -118,7 +118,7 @@ func fetchByDateRange(dates []struct{ Year, Month int }, token string) []JsonSub
 
 // ------------------------- 数据抓取逻辑 -------------------------
 
-func fetchByIdList(ids []int, token string) []JsonSubjectFile {
+func fetchByIdList(ids []int, token string) []JsonSubject {
 
 	numCPU := runtime.NumCPU()
 	log.Printf("使用 %d 线程", numCPU)
@@ -127,7 +127,7 @@ func fetchByIdList(ids []int, token string) []JsonSubjectFile {
 		wg       sync.WaitGroup
 		logMutex sync.Mutex
 		sem      = make(chan struct{}, numCPU)
-		results  = make(chan JsonSubjectFile, len(ids))
+		results  = make(chan JsonSubject, len(ids))
 		bar      = progressbar.Default(int64(len(ids)))
 	)
 
@@ -148,7 +148,7 @@ func fetchByIdList(ids []int, token string) []JsonSubjectFile {
 			}
 
 			c.OnResponse(func(r *colly.Response) {
-				var subject JsonSubjectFile
+				var subject JsonSubject
 				if err := json.Unmarshal(r.Body, &subject); err != nil {
 					logMutex.Lock()
 					log.Printf("解析JSON失败（ID %d）: %v", id, err)
@@ -189,9 +189,77 @@ func fetchByIdList(ids []int, token string) []JsonSubjectFile {
 		close(results)
 	}()
 
-	var subjects []JsonSubjectFile
+	var subjects []JsonSubject
 	for subj := range results {
 		subjects = append(subjects, subj)
 	}
 	return subjects
+}
+
+func fetchPersonsByIdList(ids []int, token string) []JsonSubjectPersonCollection {
+	numCPU := runtime.NumCPU()
+	log.Printf("使用 %d 线程", numCPU)
+
+	var (
+		wg       sync.WaitGroup
+		logMutex sync.Mutex
+		sem      = make(chan struct{}, numCPU)
+		results  = make(chan JsonSubjectPersonCollection, len(ids))
+		bar      = progressbar.Default(int64(len(ids)))
+	)
+
+	for _, id := range ids {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			url := fmt.Sprintf("https://api.bgm.tv/v0/subjects/%d/persons", id)
+			c := colly.NewCollector()
+
+			if token != "" {
+				c.OnRequest(func(r *colly.Request) {
+					r.Headers.Set("Authorization", "Bearer "+token)
+				})
+			}
+
+			c.OnResponse(func(r *colly.Response) {
+				var subjectPersons []JsonSubjectPerson
+				if err := json.Unmarshal(r.Body, &subjectPersons); err != nil {
+					logMutex.Lock()
+					log.Printf("解析JSON失败（ID %d）: %v", id, err)
+					logMutex.Unlock()
+					return
+				}
+
+				collection := JsonSubjectPersonCollection{
+					JsonSubjectPersons: subjectPersons,
+					OriginalID:         id,
+				}
+
+				results <- collection
+				bar.Add(1)
+			})
+
+			c.OnError(func(r *colly.Response, err error) {
+				logMutex.Lock()
+				log.Printf("请求错误（ID %d）: %v", id, err)
+				logMutex.Unlock()
+			})
+
+			c.Visit(url)
+		}(id)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var subjectPersonCollections []JsonSubjectPersonCollection
+	for collection := range results {
+		subjectPersonCollections = append(subjectPersonCollections, collection)
+	}
+	return subjectPersonCollections
 }

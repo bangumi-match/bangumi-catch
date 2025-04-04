@@ -46,7 +46,7 @@ type FileTag struct {
 	TotalCont int    `json:"total_cont"`
 }
 
-type JsonSubjectFile struct {
+type JsonSubject struct {
 	Collection    FileCollection `json:"collection"`
 	Date          string         `json:"date"`
 	Eps           int            `json:"eps"`
@@ -67,4 +67,20 @@ type JsonSubjectFile struct {
 	Type          int            `json:"type"`
 	Volumes       int            `json:"volumes"`
 	ProjectID     int            `json:"project_id"`
+}
+
+type JsonSubjectPerson struct {
+	Images   Images   `json:"images"`
+	Name     string   `json:"name"`
+	Relation string   `json:"relation"`
+	Career   []string `json:"career"`
+	Type     int      `json:"type"`
+	ID       int      `json:"id"`
+	Eps      string   `json:"eps"`
+}
+
+type JsonSubjectPersonCollection struct {
+	JsonSubjectPersons []JsonSubjectPerson `json:"persons"`
+	ProjectID          int                 `json:"project_id"`
+	OriginalID         int                 `json:"id"`
 }

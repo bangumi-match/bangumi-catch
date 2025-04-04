@@ -10,13 +10,13 @@ import (
 )
 
 // 读取现有数据文件
-func readExistingData() ([]JsonSubjectFile, error) {
+func readExistingData() ([]JsonSubject, error) {
 	fileData, err := ioutil.ReadFile("data/anime_lite.json")
 	if err != nil {
 		return nil, err
 	}
 
-	var existingList []JsonSubjectFile
+	var existingList []JsonSubject
 	if err := json.Unmarshal(fileData, &existingList); err != nil {
 		return nil, err
 	}
@@ -24,7 +24,7 @@ func readExistingData() ([]JsonSubjectFile, error) {
 }
 
 // ------------------------- 整理csv功能 -------------------------
-func updateRemap(data []JsonSubjectFile) {
+func updateRemap(data []JsonSubject) {
 	file, err := os.Create("data/anime_lite_remap.csv")
 	if err != nil {
 		log.Fatalf("创建CSV文件失败: %v", err)

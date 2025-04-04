@@ -82,7 +82,6 @@ func updateMode(userIDs []int) {
 	}
 	log.Printf("过滤不存在用户数: %d", notExistNumber)
 
-	chunkSize := 500
 	totalUsers := len(validUserIDs)
 	totalChunks := (totalUsers + chunkSize - 1) / chunkSize
 

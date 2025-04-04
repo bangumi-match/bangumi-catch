@@ -42,11 +42,11 @@ func processUser(userID int) (JsonUserFile, error) {
 	}
 
 	// 处理并过滤数据
-	user.Data.Wish = processCollections(collections[0])
-	user.Data.Collect = processCollections(collections[1])
-	user.Data.Doing = processCollections(collections[2])
-	user.Data.OnHold = processCollections(collections[3])
-	user.Data.Dropped = processCollections(collections[4])
+	user.Wish = processCollections(collections[0])
+	user.Collect = processCollections(collections[1])
+	user.Doing = processCollections(collections[2])
+	user.OnHold = processCollections(collections[3])
+	user.Dropped = processCollections(collections[4])
 
 	//// 有效性检查
 	//totalEntries := len(user.Data.Wish) + len(user.Data.Collect) +
@@ -99,7 +99,7 @@ func getUsersWithEmptyData() ([]int, error) {
 	}
 	var userIDs []int
 	for _, user := range existingUsers {
-		if len(user.Data.Wish) == 0 && len(user.Data.Collect) == 0 && len(user.Data.Doing) == 0 && len(user.Data.OnHold) == 0 && len(user.Data.Dropped) == 0 {
+		if len(user.Wish) == 0 && len(user.Collect) == 0 && len(user.Doing) == 0 && len(user.OnHold) == 0 && len(user.Dropped) == 0 {
 			userIDs = append(userIDs, user.UserID)
 		}
 	}

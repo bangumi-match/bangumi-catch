@@ -28,9 +28,9 @@ func main() {
 
 	// 根据模式启动相应的模块
 	switch strings.ToLower(*mode) {
-	case "subject":
+	case "subject", "s":
 		startSubjectModule()
-	case "user":
+	case "user", "u":
 		startUserModule()
 	default:
 		fmt.Println("无效的模式，请选择 subject 或 user")

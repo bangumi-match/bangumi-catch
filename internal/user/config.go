@@ -6,3 +6,5 @@ const (
 	userOutputFile = "data/user_lite.json"
 	userMapFile    = "data/user_remap.csv"
 )
+
+var chunkSize = 100

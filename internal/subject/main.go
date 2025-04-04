@@ -26,7 +26,7 @@ func Main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("请选择模式(C=创建 / U=更新 / D=日期范围更新 / R=重新映射/ F=Fix Project IDs): ")
+	fmt.Print("请选择模式(C=创建 / U=更新 / D=日期范围更新 / R=重新映射 / F=Fix Project IDs / P=下载Person / AP=根据Anime Lite下载Person / UP=update person): ")
 	mode, _ := reader.ReadString('\n')
 	mode = strings.TrimSpace(mode)
 
@@ -135,6 +135,7 @@ func Main() {
 		}
 		fmt.Printf("日期范围更新成功！现有条目数: %d\n", len(existingList))
 		updateRemap(existingList)
+
 	case "F", "FIX":
 		// Fix project IDs mode
 		fixProjectIDs()
@@ -143,6 +144,7 @@ func Main() {
 			log.Fatalf("读取现有数据失败: %v", err)
 		}
 		updateRemap(existingList)
+
 	case "R", "REMAP":
 		// 重新映射模式处理
 		existingList, err := readExistingData()
@@ -151,7 +153,44 @@ func Main() {
 		}
 		updateRemap(existingList)
 
+	case "P", "PERSON":
+		// 下载Person数据
+		fmt.Print("请输入ID列表（例如：1,2,5-10,12）: ")
+		idInput, _ := reader.ReadString('\n')
+		idInput = strings.TrimSpace(idInput)
+
+		ids, err := ParseIDList(idInput)
+		if err != nil {
+			log.Fatalf("ID列表解析失败: %v", err)
+		}
+		createSubjectPerson(ids, token)
+
+	case "AP", "ANIME_PERSON":
+		// 根据Anime Lite下载Person数据
+		existingList, err := readExistingData()
+		if err != nil {
+			log.Fatalf("读取现有数据失败: %v", err)
+		}
+
+		var ids []int
+		for _, item := range existingList {
+			ids = append(ids, item.OriginalID)
+		}
+		createSubjectPerson(ids, token)
+
+	case "UP", "UPDATE_PERSON":
+		// 更新Person数据
+		fmt.Print("请输入ID列表（例如：1,2,5-10,12）: ")
+		idInput, _ := reader.ReadString('\n')
+		idInput = strings.TrimSpace(idInput)
+
+		ids, err := ParseIDList(idInput)
+		if err != nil {
+			log.Fatalf("ID列表解析失败: %v", err)
+		}
+		updateSubjectPerson(ids, token)
+
 	default:
-		log.Fatal("无效模式选择，请选择C（创建）/U（更新）/D（日期范围更新）/R（重新映射）")
+		log.Fatal("无效模式选择，请选择C（创建）/U（更新）/D（日期范围更新）/R（重新映射）/F（Fix Project IDs）/P（下载Person）/AP（根据Anime Lite下载Person）/UP（更新Person）")
 	}
 }

@@ -1,13 +1,5 @@
 package user
 
-type UserCollection struct {
-	Wish    []Subject `json:"wish"`
-	Collect []Subject `json:"collect"`
-	Doing   []Subject `json:"doing"`
-	OnHold  []Subject `json:"on_hold"`
-	Dropped []Subject `json:"dropped"`
-}
-
 type Subject struct {
 	SubjectID int      `json:"subject_id"`
 	ProjectID int      `json:"project_id"`
@@ -18,10 +10,14 @@ type Subject struct {
 }
 
 type JsonUserFile struct {
-	UserID    int    `json:"user_id"`
-	ProjectID int    `json:"project_id"`
-	UserName  string `json:"name"`
-	Data      UserCollection
+	UserID    int       `json:"user_id"`
+	ProjectID int       `json:"project_id"`
+	UserName  string    `json:"name"`
+	Wish      []Subject `json:"wish"`
+	Collect   []Subject `json:"collect"`
+	Doing     []Subject `json:"doing"`
+	OnHold    []Subject `json:"on_hold"`
+	Dropped   []Subject `json:"dropped"`
 }
 
 type ApiResponse struct {

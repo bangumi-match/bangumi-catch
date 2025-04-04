@@ -1,6 +1,6 @@
 package subject
 
-func updateExistingFields(existing *JsonSubjectFile, newData *JsonSubjectFile) {
+func updateExistingFields(existing *JsonSubject, newData *JsonSubject) {
 	existing.Collection = newData.Collection
 	existing.Date = newData.Date
 	existing.Eps = newData.Eps
