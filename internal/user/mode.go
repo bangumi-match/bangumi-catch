@@ -1,91 +1,62 @@
 package user
 
 import (
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"github.com/schollz/progressbar/v3"
 	"log"
+	"os"
 	"runtime"
 	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 func createMode(userIDs []int) {
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, runtime.NumCPU()*2)
-	results := make(chan JsonUserFile, len(userIDs))
+	chunkSize := 100
+	totalChunks := (len(userIDs) + chunkSize - 1) / chunkSize
 
 	bar := progressbar.NewOptions(len(userIDs),
-		progressbar.OptionSetDescription("创建用户数据..."),
+		progressbar.OptionSetDescription("总体进度"),
 		progressbar.OptionShowCount(),
 	)
 
-	for _, uid := range userIDs {
-		wg.Add(1)
-		go func(userID int) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+	for chunkIdx := 0; chunkIdx < len(userIDs); chunkIdx += chunkSize {
+		end := chunkIdx + chunkSize
+		if end > len(userIDs) {
+			end = len(userIDs)
+		}
+		batchIDs := userIDs[chunkIdx:end]
 
-			if user, err := processUser(userID); err == nil {
-				results <- user
-			} else {
-				log.Println(err)
-			}
-			bar.Add(1)
-		}(uid)
+		processCreateBatch(batchIDs, (chunkIdx/chunkSize)+1, totalChunks, bar)
 	}
 
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var users []JsonUserFile
-	for u := range results {
-		users = append(users, u)
-	}
-
-	// 排序并分配ProjectID
-	sort.Slice(users, func(i, j int) bool {
-		return users[i].UserID < users[j].UserID
-	})
-	for i := range users {
-		users[i].ProjectID = i + 1
-	}
-
-	saveUserData(users)
+	log.Printf("正在整理数据，分配project_id！")
 	generateUserMap()
-	fmt.Printf("创建成功！有效用户数: %d\n", len(users))
+	log.Printf("创建成功！总处理用户数: %d\n", len(userIDs))
 }
 
 func updateMode(userIDs []int) {
-	existingUsers, err := readExistingData()
+	// 读取现有用户ID集合
+	existingIDs, err := readExistingUserIDs()
 	if err != nil {
-		log.Fatal("读取现有数据失败:", err)
+		log.Fatal("读取现有用户ID失败:", err)
 	}
 
-	userMap := make(map[int]JsonUserFile)
-	for _, user := range existingUsers {
-		userMap[user.UserID] = user
-	}
-
-	// 过滤不存在的用户
+	// 过滤有效用户ID
 	var validUserIDs []int
-	notExistNumber := 0
-	for _, userID := range userIDs {
-		if _, exists := userMap[userID]; exists {
-			validUserIDs = append(validUserIDs, userID)
-		} else {
-			notExistNumber++
+	for _, uid := range userIDs {
+		if _, exists := existingIDs[uid]; exists {
+			validUserIDs = append(validUserIDs, uid)
 		}
 	}
-	log.Printf("过滤不存在用户数: %d", notExistNumber)
 
 	totalUsers := len(validUserIDs)
+	chunkSize := 200 // 根据内存情况调整批次大小
 	totalChunks := (totalUsers + chunkSize - 1) / chunkSize
-
-	log.Printf("开始批量更新，总用户数: %d，分 %d 批处理", totalUsers, totalChunks)
 
 	for chunkIdx := 0; chunkIdx < totalUsers; chunkIdx += chunkSize {
 		end := chunkIdx + chunkSize
@@ -94,155 +65,67 @@ func updateMode(userIDs []int) {
 		}
 		currentChunk := validUserIDs[chunkIdx:end]
 
-		// 批次信息
-		batchNumber := (chunkIdx / chunkSize) + 1
-		log.Printf("开始处理批次 %d/%d（用户 %d-%d）",
-			batchNumber, totalChunks, chunkIdx+1, end)
-
-		// 处理当前批次
-		var (
-			wg           sync.WaitGroup
-			successCount int
-			failureCount int
-			mu           sync.Mutex
-		)
-
-		results := make(chan JsonUserFile, len(currentChunk))
-		sem := make(chan struct{}, runtime.NumCPU()*2)
-		bar := progressbar.NewOptions(len(currentChunk),
-			progressbar.OptionSetDescription(fmt.Sprintf("批次 %d 进度", batchNumber)),
-			progressbar.OptionShowCount(),
-		)
-
-		startTime := time.Now()
-
-		// 处理当前批次的每个用户
-		for _, uid := range currentChunk {
-			wg.Add(1)
-			go func(userID int) {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-
-				updatedUser, err := processUser(userID)
-				if err != nil {
-					mu.Lock()
-					failureCount++
-					mu.Unlock()
-					log.Printf("用户 %d 更新失败: %v", userID, err)
-					return
-				}
-
-				// 保持原有ProjectID
-				updatedUser.ProjectID = userMap[userID].ProjectID
-				results <- updatedUser
-				bar.Add(1)
-				mu.Lock()
-				successCount++
-				mu.Unlock()
-			}(uid)
-		}
-
-		// 等待当前批次完成
-		go func() {
-			wg.Wait()
-			close(results)
-		}()
-
-		// 收集当前批次结果
-		var chunkUsers []JsonUserFile
-		for u := range results {
-			chunkUsers = append(chunkUsers, u)
-		}
-
-		// 更新用户映射
-		for _, user := range chunkUsers {
-			userMap[user.UserID] = user
-		}
-
-		// 转换为切片并排序
-		finalUsers := make([]JsonUserFile, 0, len(userMap))
-		for _, user := range userMap {
-			finalUsers = append(finalUsers, user)
-		}
-		sort.Slice(finalUsers, func(i, j int) bool {
-			return finalUsers[i].ProjectID < finalUsers[j].ProjectID
-		})
-
-		// 保存当前批次数据
-		if err := saveUserData(finalUsers); err != nil {
-			log.Printf("批次 %d 数据保存失败: %v", batchNumber, err)
-		}
-
-		// 记录批次统计
-		duration := time.Since(startTime).Round(time.Second)
-		log.Printf("批次 %d/%d 完成 | 成功: %d | 失败: %d | 耗时: %v | 当前总用户: %d",
-			batchNumber, totalChunks, successCount, failureCount, duration, len(finalUsers))
+		processUpdateBatch(currentChunk, (chunkIdx/chunkSize)+1, totalChunks)
 	}
 
-	// 最终保存
-	finalUsers := make([]JsonUserFile, 0, len(userMap))
-	for _, user := range userMap {
-		finalUsers = append(finalUsers, user)
-	}
-	sort.Slice(finalUsers, func(i, j int) bool {
-		return finalUsers[i].ProjectID < finalUsers[j].ProjectID
-	})
-	saveUserData(finalUsers)
-	log.Printf("更新全部完成！总用户数: %d", len(userMap))
+	log.Printf("正在整理数据，分配project_id！")
+	generateUserMap() // 处理完成后重新生成映射
+	log.Printf("更新全部完成！总用户数: %d", len(existingIDs))
 }
 
-func addMode(userIDs []int) {
-	existingUsers, err := readExistingData()
-	if err != nil {
-		log.Fatal("读取现有数据失败:", err)
-	}
+func processUpdateBatch(batchIDs []int, batchNumber int, totalChunks int) {
+	var (
+		wg           sync.WaitGroup
+		successCount int
+		failureCount int
+		mu           sync.Mutex
+	)
 
-	// 获取当前最大ProjectID
-	maxProjectID := 0
-	for _, user := range existingUsers {
-		if user.ProjectID > maxProjectID {
-			maxProjectID = user.ProjectID
-		}
-	}
-
-	existingUserIDs := make(map[int]bool)
-	for _, user := range existingUsers {
-		existingUserIDs[user.UserID] = true
-	}
-
-	var newUsers []int
-	for _, uid := range userIDs {
-		if !existingUserIDs[uid] {
-			newUsers = append(newUsers, uid)
-		} else {
-			log.Printf("用户 %d 已存在，跳过添加", uid)
-		}
-	}
-
-	var wg sync.WaitGroup
+	results := make(chan JsonUserFile, len(batchIDs))
 	sem := make(chan struct{}, runtime.NumCPU()*2)
-	results := make(chan JsonUserFile, len(newUsers))
 
-	bar := progressbar.NewOptions(len(newUsers),
-		progressbar.OptionSetDescription("添加用户数据..."),
+	bar := progressbar.NewOptions(len(batchIDs),
+		progressbar.OptionSetDescription(fmt.Sprintf("批次 %d 进度", batchNumber)),
 		progressbar.OptionShowCount(),
 	)
 
-	for _, uid := range newUsers {
+	startTime := time.Now()
+
+	// 处理当前批次的每个用户
+	for _, uid := range batchIDs {
 		wg.Add(1)
 		go func(userID int) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			user, err := processUser(userID)
+			// 读取现有用户数据
+			existingUser, err := readUserData(userID)
 			if err != nil {
-				log.Printf("用户 %d 添加失败: %v", userID, err)
+				mu.Lock()
+				failureCount++
+				mu.Unlock()
+				log.Printf("读取用户 %d 数据失败: %v", userID, err)
 				return
 			}
-			results <- user
+
+			// 处理更新
+			updatedUser, err := processUser(userID)
+			if err != nil {
+				mu.Lock()
+				failureCount++
+				mu.Unlock()
+				log.Printf("用户 %d 更新失败: %v", userID, err)
+				return
+			}
+
+			// 保留原有ProjectID
+			updatedUser.ProjectID = existingUser.ProjectID
+			results <- updatedUser
 			bar.Add(1)
+			mu.Lock()
+			successCount++
+			mu.Unlock()
 		}(uid)
 	}
 
@@ -251,20 +134,147 @@ func addMode(userIDs []int) {
 		close(results)
 	}()
 
-	var usersToAdd []JsonUserFile
+	// 保存本批次结果
 	for u := range results {
-		usersToAdd = append(usersToAdd, u)
+		if err := saveUserData(u); err != nil {
+			log.Printf("用户 %d 保存失败: %v", u.UserID, err)
+		}
 	}
 
-	// 分配新的ProjectID
-	currentMax := maxProjectID
-	for i := range usersToAdd {
-		currentMax++
-		usersToAdd[i].ProjectID = currentMax
+	// 记录统计信息
+	duration := time.Since(startTime).Round(time.Second)
+	log.Printf("批次 %d/%d 完成 | 成功: %d | 失败: %d | 耗时: %v",
+		batchNumber, totalChunks, successCount, failureCount, duration)
+}
+
+func splitUserFile(inputPath string) error {
+	startTime := time.Now()
+	log.Printf("开始拆分用户数据文件...")
+
+	// 读取原始大文件
+	data, err := os.ReadFile(inputPath)
+	if err != nil {
+		return fmt.Errorf("文件读取失败: %v", err)
 	}
 
-	allUsers := append(existingUsers, usersToAdd...)
-	saveUserData(allUsers)
+	// 解析JSON数据
+	var users []JsonUserFile
+	if err := json.Unmarshal(data, &users); err != nil {
+		return fmt.Errorf("JSON解析失败: %v", err)
+	}
+
+	totalUsers := len(users)
+	bar := progressbar.NewOptions(totalUsers,
+		progressbar.OptionSetDescription("拆分进度"),
+		progressbar.OptionShowCount(),
+	)
+
+	successCount := 0
+	failureCount := 0
+	sem := make(chan struct{}, runtime.NumCPU()*2) // 并发控制
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	for _, user := range users {
+		wg.Add(1)
+		go func(u JsonUserFile) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			// 检查数据有效性
+			if u.UserID == 0 {
+				mu.Lock()
+				failureCount++
+				mu.Unlock()
+				log.Printf("无效用户数据: %+v", u)
+				return
+			}
+
+			// 保存为独立文件
+			if err := saveUserData(u); err != nil {
+				mu.Lock()
+				failureCount++
+				mu.Unlock()
+				log.Printf("用户 %d 保存失败: %v", u.UserID, err)
+				return
+			}
+
+			mu.Lock()
+			successCount++
+			mu.Unlock()
+			bar.Add(1)
+		}(user)
+	}
+
+	wg.Wait()
+
+	// 生成映射文件
 	generateUserMap()
-	fmt.Printf("添加成功！新增用户数: %d\n", len(usersToAdd))
+
+	log.Printf("拆分完成！总用户: %d | 成功: %d | 失败: %d | 耗时: %v",
+		totalUsers,
+		successCount,
+		failureCount,
+		time.Since(startTime).Round(time.Second))
+	return nil
+}
+
+func generateUserMap() {
+	entries, err := os.ReadDir(usersDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var users []JsonUserFile
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		if strings.HasSuffix(entry.Name(), ".json") {
+			idStr := entry.Name()[:len(entry.Name())-5]
+			userID, err := strconv.Atoi(idStr)
+			if err != nil {
+				continue
+			}
+
+			user, err := readUserData(userID)
+			if err != nil {
+				log.Printf("读取用户 %d 数据失败: %v", userID, err)
+				continue
+			}
+			users = append(users, user)
+		}
+	}
+
+	// 按UserID排序并重新分配ProjectID
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].UserID < users[j].UserID
+	})
+	for i := range users {
+		users[i].ProjectID = i + 1
+		if err := saveUserData(users[i]); err != nil {
+			log.Printf("更新用户 %d ProjectID失败: %v", users[i].UserID, err)
+		}
+	}
+
+	// 生成CSV映射文件
+	file, err := os.Create(userMapFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	writer.Write([]string{"project_id", "user_id", "user_name"})
+
+	for _, u := range users {
+		writer.Write([]string{
+			strconv.Itoa(u.ProjectID),
+			strconv.Itoa(u.UserID),
+			u.UserName,
+		})
+	}
+	writer.Flush()
 }

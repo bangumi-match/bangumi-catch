@@ -5,6 +5,8 @@ const (
 	animeMapFile   = "data/anime_lite_remap.csv"
 	userOutputFile = "data/user_lite.json"
 	userMapFile    = "data/user_remap.csv"
+	dataDir        = "data"
+	usersDir       = "data/users"
 )
 
 var chunkSize = 100

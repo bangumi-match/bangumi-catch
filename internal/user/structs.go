@@ -18,6 +18,7 @@ type JsonUserFile struct {
 	Doing     []Subject `json:"doing"`
 	OnHold    []Subject `json:"on_hold"`
 	Dropped   []Subject `json:"dropped"`
+	CatchTime string    `json:"catch_time"`
 }
 
 type ApiResponse struct {

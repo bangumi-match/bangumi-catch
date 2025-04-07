@@ -11,30 +11,27 @@ import (
 	"time"
 )
 
-func getUserName(userID string) string {
-	resp, err := http.Get(fmt.Sprintf("https://bgm.tv/user/%s", userID))
-	if err != nil {
-		return ""
-	}
-	defer resp.Body.Close()
-
-	if resp.Request.URL.Path != fmt.Sprintf("/user/%s", userID) {
-		parts := strings.Split(resp.Request.URL.Path, "/")
-		if len(parts) > 2 {
-			return parts[2]
+func getUserName(userID int) string {
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		var resp *http.Response
+		resp, err = http.Get(fmt.Sprintf("https://bgm.tv/user/%d", userID))
+		if err == nil {
+			defer resp.Body.Close()
+			if resp.Request.URL.Path != fmt.Sprintf("/user/%d", userID) {
+				parts := strings.Split(resp.Request.URL.Path, "/")
+				if len(parts) > 2 {
+					return parts[2]
+				}
+			}
+			return ""
 		}
 	}
+	log.Printf("获取用户名失败: %v", err)
 	return ""
 }
 
-func fetchUserData(userID string, userName string, collectionType int) ([]Collection, error) {
-	fetchID := ""
-	if userName != "" {
-		fetchID = userName
-	} else {
-		fetchID = userID
-	}
-
+func fetchUserData(fetchId string, collectionType int) ([]Collection, error) {
 	var result []Collection
 	offset := 0
 	limit := 40
@@ -43,7 +40,7 @@ func fetchUserData(userID string, userName string, collectionType int) ([]Collec
 	c.SetRequestTimeout(60 * time.Second)
 	c.Async = true
 
-	url := fmt.Sprintf("https://api.bgm.tv/v0/users/%s/collections?subject_type=2&type=%d", fetchID, collectionType)
+	url := fmt.Sprintf("https://api.bgm.tv/v0/users/%s/collections?subject_type=2&type=%d", fetchId, collectionType)
 
 	var mu sync.Mutex
 	var lastErr error

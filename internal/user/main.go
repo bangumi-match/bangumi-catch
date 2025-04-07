@@ -27,7 +27,7 @@ func Main() {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("请选择模式(C=创建 / U=更新 / A=添加 / R=重新映射): ")
+	fmt.Print("请选择模式(C=创建/U=更新/R=重新映射/M=合并数据/D=拆分数据): ")
 	mode, _ := reader.ReadString('\n')
 	mode = strings.ToUpper(strings.TrimSpace(mode))
 
@@ -40,7 +40,6 @@ func Main() {
 			log.Fatal("输入解析失败:", err)
 		}
 		createMode(userIDs)
-
 	case "U":
 		fmt.Print("请输入要更新的用户ID或范围（输入'all'更新所有用户，输入'empty'更新所有Data为空的用户）: ")
 		input, _ := reader.ReadString('\n')
@@ -63,18 +62,21 @@ func Main() {
 			}
 		}
 		updateMode(userIDs)
-	case "A":
-		fmt.Print("请输入要添加的用户ID或范围: ")
-		input, _ := reader.ReadString('\n')
-		userIDs, err := ParseIDList(strings.TrimSpace(input))
-		if err != nil {
-			log.Fatal("输入解析失败:", err)
-		}
-		addMode(userIDs)
 	case "R":
 		generateUserMap()
 		fmt.Println("用户映射表已重新生成")
+	case "M":
+		if err := mergeUserFiles(userOutputFile); err != nil {
+			log.Fatal("合并失败:", err)
+		}
+		fmt.Printf("数据已合并至 %s\n", userOutputFile)
+	case "D":
+		if err := splitUserFile(userOutputFile); err != nil {
+			log.Fatal("拆分失败:", err)
+		}
+		fmt.Println("数据拆分完成")
 	default:
 		log.Fatal("无效模式选择")
 	}
+
 }

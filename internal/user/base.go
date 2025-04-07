@@ -24,36 +24,21 @@ func initLog() (*os.File, error) {
 	return logFile, nil
 }
 
-func resolveUserID(userID string) (fetchID string, userName string, err error) { // 通过数字ID获取用户唯一urlID
+func resolveUserID(userID int) (fetchID string, err error) { // 通过数字ID获取用户唯一urlID
 	// 读取本地 JSON 文件
-	users, err := readExistingData()
-	if err != nil {
-		return "", "", fmt.Errorf("读取本地数据失败: %v", err)
+	user, err := readUserData(userID)
+	if err != nil && os.IsNotExist(err) {
+		return strconv.Itoa(userID), nil
 	}
 
-	// 检查本地是否存在该用户ID
-	for _, user := range users {
-		if strconv.Itoa(user.UserID) == userID {
-			if user.UserName != "" {
-				return userID, user.UserName, nil
-			}
-			break
+	// 如果输入是数字ID且本地没有设置字符串，尝试获取用户名
+	if user.UserName == "" {
+		user.UserName = getUserName(userID)
+		if user.UserName == "" {
+			// 获取不到用户名时仍使用数字ID
+			return strconv.Itoa(userID), nil
 		}
+		return user.UserName, nil
 	}
-
-	// 如果输入是数字ID，尝试获取用户名
-	if _, err := strconv.Atoi(userID); err == nil {
-		// 重试机制
-		for attempt := 0; attempt < 3; attempt++ {
-			userName = getUserName(userID)
-			if userName != "" {
-				return userName, userName, nil
-			}
-			time.Sleep(500 * time.Millisecond)
-		}
-		// 获取不到用户名时仍使用数字ID
-		return userID, "", nil
-	}
-	// 如果输入本身就是用户名，直接使用
-	return userID, userID, nil
+	return user.UserName, nil
 }

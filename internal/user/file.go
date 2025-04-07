@@ -5,29 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
-	"sort"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"time"
 )
 
+var userRemap []JsonUserFile
+
 // ------------------------- 文件操作 -------------------------
-func readExistingData() ([]JsonUserFile, error) {
-	data, err := os.ReadFile(userOutputFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []JsonUserFile{}, nil
-		}
-		return nil, err
-	}
-
-	var users []JsonUserFile
-	if err := json.Unmarshal(data, &users); err != nil {
-		return nil, err
-	}
-	return users, nil
-}
-
 func loadAnimeMap() error {
 	file, err := os.Open(animeMapFile)
 	if err != nil {
@@ -59,53 +46,52 @@ func loadAnimeMap() error {
 	return nil
 }
 
-func saveUserData(users []JsonUserFile) error {
-	data, err := json.MarshalIndent(users, "", "  ")
+// ------------------------- 文件操作 -------------------------
+
+func init() {
+	os.MkdirAll(usersDir, 0755)
+}
+
+func saveUserData(user JsonUserFile) error {
+	user.CatchTime = time.Now().Format("2006-01-02 15:04:05")
+	data, err := json.Marshal(user)
 	if err != nil {
 		return fmt.Errorf("JSON序列化失败: %v", err)
 	}
-
-	if err := os.WriteFile(userOutputFile, data, 0644); err != nil {
-		return fmt.Errorf("文件写入失败: %v", err)
-	}
-	return nil
+	return os.WriteFile(filepath.Join(usersDir, fmt.Sprintf("%d.json", user.UserID)), data, 0644)
 }
 
-func generateUserMap() {
-	// 读取现有的 JSON 数据
-	users, err := readExistingData()
+func readUserData(userID int) (JsonUserFile, error) {
+	data, err := os.ReadFile(filepath.Join(usersDir, fmt.Sprintf("%d.json", userID)))
 	if err != nil {
-		log.Fatal(err)
+		return JsonUserFile{}, err
 	}
 
-	// 按照 UserID 排序
-	sort.Slice(users, func(i, j int) bool {
-		return users[i].UserID < users[j].UserID
-	})
-
-	// 重新赋予 project_id
-	for i := range users {
-		users[i].ProjectID = i + 1
+	var user JsonUserFile
+	if err := json.Unmarshal(data, &user); err != nil {
+		return user, err
 	}
+	return user, nil
+}
 
-	// 将更新后的数据保存回 JSON 文件
-	saveUserData(users)
-
-	// 生成 CSV 文件
-	file, err := os.Create(userMapFile)
+func readExistingUserIDs() (map[int]struct{}, error) {
+	entries, err := os.ReadDir(usersDir)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	defer file.Close()
 
-	writer := csv.NewWriter(file)
-	writer.Write([]string{"project_id", "user_id"})
+	ids := make(map[int]struct{})
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
 
-	for _, u := range users {
-		writer.Write([]string{
-			strconv.Itoa(u.ProjectID),
-			strconv.Itoa(u.UserID),
-		})
+		if strings.HasSuffix(entry.Name(), ".json") {
+			idStr := entry.Name()[:len(entry.Name())-5]
+			if id, err := strconv.Atoi(idStr); err == nil {
+				ids[id] = struct{}{}
+			}
+		}
 	}
-	writer.Flush()
+	return ids, nil
 }
