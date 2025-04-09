@@ -26,7 +26,7 @@ func Main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("请选择模式(C=创建 / U=更新 / D=日期范围更新 / R=重新映射 / F=Fix Project IDs / P=下载Person / AP=根据Anime Lite下载Person / UP=update person): ")
+	fmt.Print("请选择模式(C=创建 / U=更新 / D=日期范围更新 / R=重新映射 / P=下载Person / AP=根据Anime Lite下载Person / UP=update person): ")
 	mode, _ := reader.ReadString('\n')
 	mode = strings.TrimSpace(mode)
 
@@ -130,23 +130,14 @@ func Main() {
 		if err != nil {
 			log.Fatalf("JSON生成失败: %v", err)
 		}
-		if err := ioutil.WriteFile("data/anime_lite.json", output, 0644); err != nil {
+		if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
 			log.Fatalf("文件写入失败: %v", err)
 		}
 		fmt.Printf("日期范围更新成功！现有条目数: %d\n", len(existingList))
 		updateRemap(existingList)
-
-	case "F", "FIX":
+	case "R", "REMAP":
 		// Fix project IDs mode
 		fixProjectIDs()
-		existingList, err := readExistingData()
-		if err != nil {
-			log.Fatalf("读取现有数据失败: %v", err)
-		}
-		updateRemap(existingList)
-
-	case "R", "REMAP":
-		// 重新映射模式处理
 		existingList, err := readExistingData()
 		if err != nil {
 			log.Fatalf("读取现有数据失败: %v", err)

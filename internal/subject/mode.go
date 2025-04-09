@@ -25,14 +25,14 @@ func createMode(ids []int, token string) {
 	if err != nil {
 		log.Fatalf("JSON生成失败: %v", err)
 	}
-	if err := ioutil.WriteFile("data/anime_lite.json", output, 0644); err != nil {
+	if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
 		log.Fatalf("文件写入失败: %v", err)
 	}
 	fmt.Printf("创建成功！共处理 %d 个条目\n", len(subjects))
 }
 
 func updateMode(ids []int, token string) {
-	fileData, err := ioutil.ReadFile("data/anime_lite.json")
+	fileData, err := ioutil.ReadFile("data/anime.json")
 	if err != nil {
 		log.Fatalf("读取现有文件失败: %v", err)
 	}
@@ -72,7 +72,7 @@ func updateMode(ids []int, token string) {
 	if err != nil {
 		log.Fatalf("JSON生成失败: %v", err)
 	}
-	if err := ioutil.WriteFile("data/anime_lite.json", output, 0644); err != nil {
+	if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
 		log.Fatalf("文件写入失败: %v", err)
 	}
 	fmt.Printf("更新成功！现有条目数: %d\n", len(existingList))
@@ -172,7 +172,7 @@ func fixProjectIDs() {
 
 	// Reassign project_id based on sorted order
 	for i := range existingList {
-		existingList[i].ProjectID = i + 1
+		existingList[i].ProjectID = i
 	}
 
 	// Write updated data back to JSON file
@@ -180,7 +180,7 @@ func fixProjectIDs() {
 	if err != nil {
 		log.Fatalf("Failed to generate JSON: %v", err)
 	}
-	if err := ioutil.WriteFile("data/anime_lite.json", output, 0644); err != nil {
+	if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
 		log.Fatalf("Failed to write file: %v", err)
 	}
 	fmt.Printf("Project IDs fixed successfully! Total entries: %d\n", len(existingList))

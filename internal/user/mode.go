@@ -35,7 +35,8 @@ func createMode(userIDs []int) {
 	}
 
 	log.Printf("正在整理数据，分配project_id！")
-	generateUserMap()
+	// 处理完成后不再重新生成映射，需要手动调用
+	//generateUserMap()
 	log.Printf("创建成功！总处理用户数: %d\n", len(userIDs))
 }
 
@@ -69,7 +70,7 @@ func updateMode(userIDs []int) {
 	}
 
 	log.Printf("正在整理数据，分配project_id！")
-	generateUserMap() // 处理完成后重新生成映射
+	//generateUserMap() // 处理完成后不再重新生成映射，需要手动调用
 	log.Printf("更新全部完成！总用户数: %d", len(existingIDs))
 }
 
@@ -209,8 +210,8 @@ func splitUserFile(inputPath string) error {
 
 	wg.Wait()
 
-	// 生成映射文件
-	generateUserMap()
+	// 处理完成后不再重新生成映射，需要手动调用
+	//generateUserMap()
 
 	log.Printf("拆分完成！总用户: %d | 成功: %d | 失败: %d | 耗时: %v",
 		totalUsers,
@@ -221,60 +222,104 @@ func splitUserFile(inputPath string) error {
 }
 
 func generateUserMap() {
+	log.Println("开始重新生成用户映射表...")
+	startTime := time.Now()
+
+	// 读取所有用户数据
 	entries, err := os.ReadDir(usersDir)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("读取用户目录失败:", err)
 	}
 
 	var users []JsonUserFile
 	for _, entry := range entries {
-		if entry.IsDir() {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
 
-		if strings.HasSuffix(entry.Name(), ".json") {
-			idStr := entry.Name()[:len(entry.Name())-5]
-			userID, err := strconv.Atoi(idStr)
-			if err != nil {
-				continue
-			}
-
-			user, err := readUserData(userID)
-			if err != nil {
-				log.Printf("读取用户 %d 数据失败: %v", userID, err)
-				continue
-			}
-			users = append(users, user)
+		// 解析用户ID
+		idStr := entry.Name()[:len(entry.Name())-5]
+		userID, err := strconv.Atoi(idStr)
+		if err != nil {
+			log.Printf("跳过无效文件名: %s", entry.Name())
+			continue
 		}
+
+		// 读取用户数据
+		user, err := readUserData(userID)
+		if err != nil {
+			log.Printf("读取用户 %d 数据失败: %v", userID, err)
+			continue
+		}
+
+		// 更新动画条目的 project_id
+		updateAnimeProjectIDs(&user)
+		users = append(users, user)
 	}
 
-	// 按UserID排序并重新分配ProjectID
+	// 按 UserID 排序
 	sort.Slice(users, func(i, j int) bool {
 		return users[i].UserID < users[j].UserID
 	})
+
+	// 重新分配用户 project_id
 	for i := range users {
-		users[i].ProjectID = i + 1
+		users[i].ProjectID = i // 从0开始连续分配
 		if err := saveUserData(users[i]); err != nil {
-			log.Printf("更新用户 %d ProjectID失败: %v", users[i].UserID, err)
+			log.Printf("保存用户 %d 数据失败: %v", users[i].UserID, err)
 		}
 	}
 
-	// 生成CSV映射文件
+	// 生成CSV文件
 	file, err := os.Create(userMapFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("创建映射文件失败:", err)
 	}
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
-	writer.Write([]string{"project_id", "user_id", "user_name"})
+	defer writer.Flush()
 
+	// 写入标题行
+	if err := writer.Write([]string{"project_id", "user_id", "user_name"}); err != nil {
+		log.Fatal("写入CSV标题失败:", err)
+	}
+
+	// 写入数据行
 	for _, u := range users {
-		writer.Write([]string{
+		record := []string{
 			strconv.Itoa(u.ProjectID),
 			strconv.Itoa(u.UserID),
 			u.UserName,
-		})
+		}
+		if err := writer.Write(record); err != nil {
+			log.Printf("跳过用户 %d: CSV写入失败: %v", u.UserID, err)
+		}
 	}
-	writer.Flush()
+
+	log.Printf("映射表生成完成！总用户数: %d | 耗时: %v",
+		len(users),
+		time.Since(startTime).Round(time.Second))
+}
+
+// 更新用户收藏动画的 project_id
+func updateAnimeProjectIDs(user *JsonUserFile) {
+	update := func(list *[]Subject) {
+		newList := make([]Subject, 0, len(*list))
+		for _, subject := range *list {
+			if projectID, exists := animeIDMap[subject.SubjectID]; exists {
+				subject.ProjectID = projectID
+				newList = append(newList, subject)
+			} else {
+				log.Printf("用户 %d: 动画ID %d 无映射关系，已过滤", user.UserID, subject.SubjectID)
+			}
+		}
+		*list = newList
+	}
+
+	update(&user.Wish)
+	update(&user.Collect)
+	update(&user.Doing)
+	update(&user.OnHold)
+	update(&user.Dropped)
 }

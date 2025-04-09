@@ -95,3 +95,30 @@ func readExistingUserIDs() (map[int]struct{}, error) {
 	}
 	return ids, nil
 }
+func getUserCatchTimes() (map[int]string, error) {
+	entries, err := os.ReadDir(usersDir)
+	if err != nil {
+		return nil, err
+	}
+
+	catchTimes := make(map[int]string)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		if strings.HasSuffix(entry.Name(), ".json") {
+			idStr := entry.Name()[:len(entry.Name())-5]
+			if id, err := strconv.Atoi(idStr); err == nil {
+				user, err := readUserData(id)
+				if err != nil {
+					continue
+				}
+				if user.CatchTime != "" {
+					catchTimes[id] = user.CatchTime
+				}
+			}
+		}
+	}
+	return catchTimes, nil
+}
