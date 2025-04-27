@@ -10,7 +10,7 @@ import (
 )
 
 // 读取现有数据文件
-func readExistingData() ([]JsonSubject, error) {
+func readExistingSubjects() ([]JsonSubject, error) {
 	fileData, err := ioutil.ReadFile("data/anime.json")
 	if err != nil {
 		return nil, err
@@ -21,6 +21,10 @@ func readExistingData() ([]JsonSubject, error) {
 		return nil, err
 	}
 	return existingList, nil
+}
+
+func readExsitingStaffs() {
+
 }
 
 // ------------------------- 整理csv功能 -------------------------

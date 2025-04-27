@@ -80,7 +80,7 @@ func updateMode(ids []int, token string) {
 
 func createSubjectPerson(ids []int, token string) {
 	// Read existing data
-	existingList, err := readExistingData()
+	existingList, err := readExistingSubjects()
 	if err != nil {
 		log.Fatalf("Failed to read existing data: %v", err)
 	}
@@ -160,31 +160,31 @@ func updateSubjectPerson(ids []int, token string) {
 }
 func fixProjectIDs() {
 	// Read existing data
-	existingList, err := readExistingData()
+	existingSubjectsList, err := readExistingSubjects()
 	if err != nil {
 		log.Fatalf("Failed to read existing data: %v", err)
 	}
 
 	// Sort by original_id
-	sort.Slice(existingList, func(i, j int) bool {
-		return existingList[i].OriginalID < existingList[j].OriginalID
+	sort.Slice(existingSubjectsList, func(i, j int) bool {
+		return existingSubjectsList[i].OriginalID < existingSubjectsList[j].OriginalID
 	})
 
 	// Reassign project_id based on sorted order
-	for i := range existingList {
-		existingList[i].ProjectID = i
+	for i := range existingSubjectsList {
+		existingSubjectsList[i].ProjectID = i
 	}
 
 	// Write updated data back to JSON file
-	output, err := json.MarshalIndent(existingList, "", "  ")
+	output, err := json.MarshalIndent(existingSubjectsList, "", "  ")
 	if err != nil {
 		log.Fatalf("Failed to generate JSON: %v", err)
 	}
 	if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
 		log.Fatalf("Failed to write file: %v", err)
 	}
-	fmt.Printf("Project IDs fixed successfully! Total entries: %d\n", len(existingList))
+	fmt.Printf("Project IDs fixed successfully! Total entries: %d\n", len(existingSubjectsList))
 
 	// Update the remap CSV file
-	updateRemap(existingList)
+	updateRemap(existingSubjectsList)
 }

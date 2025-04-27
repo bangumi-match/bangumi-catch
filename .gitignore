@@ -30,3 +30,4 @@ go.work.sum
 logs
 .venv
 data
+/to_bole/

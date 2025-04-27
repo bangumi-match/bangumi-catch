@@ -42,7 +42,7 @@ func Main() {
 			log.Fatalf("ID列表解析失败: %v", err)
 		}
 		createMode(ids, token)
-		existingList, err := readExistingData()
+		existingList, err := readExistingSubjects()
 		if err != nil {
 			log.Fatalf("读取现有数据失败: %v", err)
 		}
@@ -57,7 +57,7 @@ func Main() {
 		var ids []int
 		if strings.ToLower(idInput) == "all" {
 			// 读取现有数据获取所有ID
-			existingList, err := readExistingData()
+			existingList, err := readExistingSubjects()
 			if err != nil {
 				log.Fatalf("读取现有数据失败: %v", err)
 			}
@@ -73,7 +73,7 @@ func Main() {
 			ids = parsedIDs
 		}
 		updateMode(ids, token)
-		existingList, err := readExistingData()
+		existingList, err := readExistingSubjects()
 		if err != nil {
 			log.Fatalf("读取现有数据失败: %v", err)
 		}
@@ -97,7 +97,7 @@ func Main() {
 		newSubjects := fetchByDateRange(dates, token)
 
 		// 合并到现有数据
-		existingList, err := readExistingData()
+		existingList, err := readExistingSubjects()
 		if err != nil {
 			log.Fatalf("读取现有数据失败: %v", err)
 		}
@@ -138,7 +138,7 @@ func Main() {
 	case "R", "REMAP":
 		// Fix project IDs mode
 		fixProjectIDs()
-		existingList, err := readExistingData()
+		existingList, err := readExistingSubjects()
 		if err != nil {
 			log.Fatalf("读取现有数据失败: %v", err)
 		}
@@ -158,7 +158,7 @@ func Main() {
 
 	case "AP", "ANIME_PERSON":
 		// 根据Anime Lite下载Person数据
-		existingList, err := readExistingData()
+		existingList, err := readExistingSubjects()
 		if err != nil {
 			log.Fatalf("读取现有数据失败: %v", err)
 		}

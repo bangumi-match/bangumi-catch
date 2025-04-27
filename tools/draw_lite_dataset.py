@@ -50,7 +50,7 @@ def main():
   random.shuffle(sampled_users)
 
   # 重新分配 project_id
-  for new_project_id, user in enumerate(sampled_users, start=1):
+  for new_project_id, user in enumerate(sampled_users, start=0):
     user["project_id"] = new_project_id
 
   with open("../data/sampled_users_by_proportion.json", "w", encoding="utf-8") as f:

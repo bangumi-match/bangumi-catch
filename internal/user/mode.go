@@ -7,6 +7,7 @@ import (
 	"github.com/schollz/progressbar/v3"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
@@ -224,6 +225,7 @@ func splitUserFile(inputPath string) error {
 func generateUserMap() {
 	log.Println("开始重新生成用户映射表...")
 	startTime := time.Now()
+	var deletedUsers []JsonUserFile // 记录被删除的空用户
 
 	// 读取所有用户数据
 	entries, err := os.ReadDir(usersDir)
@@ -254,7 +256,32 @@ func generateUserMap() {
 
 		// 更新动画条目的 project_id
 		updateAnimeProjectIDs(&user)
+
+		// 检查所有收藏是否为空
+		if isEmptyUserData(user) {
+			// 删除用户文件
+			filePath := filepath.Join(usersDir, entry.Name())
+			if err := os.Remove(filePath); err != nil {
+				log.Printf("删除用户 %d 文件失败: %v", userID, err)
+			} else {
+				deletedUsers = append(deletedUsers, user)
+				log.Printf("已删除空用户: ID=%-8d | 用户名=%s", user.UserID, user.UserName)
+			}
+			continue // 跳过有效用户列表
+		}
+
 		users = append(users, user)
+	}
+
+	// 输出清除结果
+	if len(deletedUsers) > 0 {
+		log.Println("\n=== 已删除空用户统计 ===")
+		for _, u := range deletedUsers {
+			log.Printf("ID: %-8d | 用户名: %s", u.UserID, u.UserName)
+		}
+		log.Printf("共删除 %d 个空用户\n", len(deletedUsers))
+	} else {
+		log.Println("未发现空用户")
 	}
 
 	// 按 UserID 排序
@@ -297,7 +324,7 @@ func generateUserMap() {
 		}
 	}
 
-	log.Printf("映射表生成完成！总用户数: %d | 耗时: %v",
+	log.Printf("映射表生成完成！有效用户数: %d | 耗时: %v",
 		len(users),
 		time.Since(startTime).Round(time.Second))
 }
