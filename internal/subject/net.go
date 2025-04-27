@@ -263,3 +263,71 @@ func fetchPersonsByIdList(ids []int, token string) []JsonSubjectPersonCollection
 	}
 	return subjectPersonCollections
 }
+
+func fetchRelationsByIdList(ids []int, token string) []JsonSubjectRelationCollection {
+	numCPU := runtime.NumCPU()
+	log.Printf("使用 %d 线程", numCPU)
+
+	var (
+		wg       sync.WaitGroup
+		logMutex sync.Mutex
+		sem      = make(chan struct{}, numCPU)
+		results  = make(chan JsonSubjectRelationCollection, len(ids))
+		bar      = progressbar.Default(int64(len(ids)))
+	)
+
+	for _, id := range ids {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			url := fmt.Sprintf("https://api.bgm.tv/v0/subjects/%d/subjects", id)
+			c := colly.NewCollector()
+
+			if token != "" {
+				c.OnRequest(func(r *colly.Request) {
+					r.Headers.Set("Authorization", "Bearer "+token)
+				})
+			}
+
+			c.OnResponse(func(r *colly.Response) {
+				var relations []JsonSubjectRelation
+				if err := json.Unmarshal(r.Body, &relations); err != nil {
+					logMutex.Lock()
+					log.Printf("解析JSON失败（ID %d）: %v", id, err)
+					logMutex.Unlock()
+					return
+				}
+
+				collection := JsonSubjectRelationCollection{
+					JsonSubjectRelations: relations,
+					OriginalID:           id,
+				}
+
+				results <- collection
+				bar.Add(1)
+			})
+
+			c.OnError(func(r *colly.Response, err error) {
+				logMutex.Lock()
+				log.Printf("请求错误（ID %d）: %v", id, err)
+				logMutex.Unlock()
+			})
+
+			c.Visit(url)
+		}(id)
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var relationCollections []JsonSubjectRelationCollection
+	for collection := range results {
+		relationCollections = append(relationCollections, collection)
+	}
+	return relationCollections
+}

@@ -25,7 +25,7 @@ func createMode(ids []int, token string) {
 	if err != nil {
 		log.Fatalf("JSON生成失败: %v", err)
 	}
-	if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
+	if err := os.WriteFile("data/anime.json", output, 0644); err != nil {
 		log.Fatalf("文件写入失败: %v", err)
 	}
 	fmt.Printf("创建成功！共处理 %d 个条目\n", len(subjects))
@@ -72,7 +72,7 @@ func updateMode(ids []int, token string) {
 	if err != nil {
 		log.Fatalf("JSON生成失败: %v", err)
 	}
-	if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
+	if err := os.WriteFile("data/anime.json", output, 0644); err != nil {
 		log.Fatalf("文件写入失败: %v", err)
 	}
 	fmt.Printf("更新成功！现有条目数: %d\n", len(existingList))
@@ -113,14 +113,15 @@ func createSubjectPerson(ids []int, token string) {
 	if err != nil {
 		log.Fatalf("Failed to generate JSON: %v", err)
 	}
-	if err := ioutil.WriteFile("data/subject_persons.json", output, 0644); err != nil {
+	if err := os.WriteFile("data/anime_staffs.json", output, 0644); err != nil {
 		log.Fatalf("Failed to write file: %v", err)
 	}
 	fmt.Printf("Creation successful! Processed %d entries\n", len(subjectPersons))
 }
+
 func updateSubjectPerson(ids []int, token string) {
 	// Read existing data
-	fileData, err := ioutil.ReadFile("data/subject_persons.json")
+	fileData, err := ioutil.ReadFile("data/anime_staffs.json")
 	if err != nil {
 		log.Fatalf("Failed to read existing file: %v", err)
 	}
@@ -153,38 +154,133 @@ func updateSubjectPerson(ids []int, token string) {
 	if err != nil {
 		log.Fatalf("Failed to generate JSON: %v", err)
 	}
-	if err := ioutil.WriteFile("data/subject_persons.json", output, 0644); err != nil {
+	if err := os.WriteFile("data/anime_staffs.json", output, 0644); err != nil {
 		log.Fatalf("Failed to write file: %v", err)
 	}
 	fmt.Printf("Update successful! Total entries: %d\n", len(existingList))
 }
+
 func fixProjectIDs() {
-	// Read existing data
+	// 读取并修复anime.json
 	existingSubjectsList, err := readExistingSubjects()
 	if err != nil {
-		log.Fatalf("Failed to read existing data: %v", err)
+		log.Fatalf("读取基础数据失败: %v", err)
 	}
 
-	// Sort by original_id
+	// 创建OriginalID到ProjectID的映射表
+	idMap := make(map[int]int)
 	sort.Slice(existingSubjectsList, func(i, j int) bool {
 		return existingSubjectsList[i].OriginalID < existingSubjectsList[j].OriginalID
 	})
-
-	// Reassign project_id based on sorted order
 	for i := range existingSubjectsList {
-		existingSubjectsList[i].ProjectID = i
+		existingSubjectsList[i].ProjectID = i + 1 // 从1开始递增
+		idMap[existingSubjectsList[i].OriginalID] = existingSubjectsList[i].ProjectID
 	}
 
-	// Write updated data back to JSON file
-	output, err := json.MarshalIndent(existingSubjectsList, "", "  ")
-	if err != nil {
-		log.Fatalf("Failed to generate JSON: %v", err)
+	// 写回anime.json
+	output, _ := json.MarshalIndent(existingSubjectsList, "", "  ")
+	if err := os.WriteFile("data/anime.json", output, 0644); err != nil {
+		log.Fatalf("更新基础数据失败: %v", err)
 	}
-	if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
-		log.Fatalf("Failed to write file: %v", err)
-	}
-	fmt.Printf("Project IDs fixed successfully! Total entries: %d\n", len(existingSubjectsList))
 
-	// Update the remap CSV file
+	// 处理staff数据
+	if _, err := os.Stat("data/anime_staffs.json"); err == nil {
+		fileData, _ := ioutil.ReadFile("data/anime_staffs.json")
+		var staffs []JsonSubjectPersonCollection
+		json.Unmarshal(fileData, &staffs)
+
+		for i := range staffs {
+			if projectID, exists := idMap[staffs[i].OriginalID]; exists {
+				staffs[i].ProjectID = projectID
+			}
+		}
+		output, _ := json.MarshalIndent(staffs, "", "  ")
+		os.WriteFile("data/anime_staffs.json", output, 0644)
+	}
+
+	// 处理relation数据
+	if _, err := os.Stat("data/anime_relations.json"); err == nil {
+		fileData, _ := ioutil.ReadFile("data/anime_relations.json")
+		var relations []JsonSubjectRelationCollection
+		json.Unmarshal(fileData, &relations)
+
+		for i := range relations {
+			if projectID, exists := idMap[relations[i].OriginalID]; exists {
+				relations[i].ProjectID = projectID
+			}
+		}
+		output, _ := json.MarshalIndent(relations, "", "  ")
+		os.WriteFile("data/anime_relations.json", output, 0644)
+	}
+
+	fmt.Printf("重新映射完成！总条目数: %d\n", len(existingSubjectsList))
 	updateRemap(existingSubjectsList)
+}
+
+// 新增创建关系数据函数
+func createSubjectRelations(ids []int, token string) {
+	existingList, err := readExistingSubjects()
+	if err != nil {
+		log.Fatalf("读取基础数据失败: %v", err)
+	}
+
+	existingIDMap := make(map[int]int)
+	for _, item := range existingList {
+		existingIDMap[item.OriginalID] = item.ProjectID
+	}
+
+	subjectRelations := fetchRelationsByIdList(ids, token)
+
+	for i := range subjectRelations {
+		if projectID, exists := existingIDMap[subjectRelations[i].OriginalID]; exists {
+			subjectRelations[i].ProjectID = projectID
+		} else {
+			log.Fatalf("ID %d 没有对应的project ID，请先下载基础数据", subjectRelations[i].OriginalID)
+		}
+	}
+
+	output, err := json.MarshalIndent(subjectRelations, "", "  ")
+	if err != nil {
+		log.Fatalf("JSON生成失败: %v", err)
+	}
+	if err := os.WriteFile("data/anime_relations.json", output, 0644); err != nil {
+		log.Fatalf("文件写入失败: %v", err)
+	}
+	fmt.Printf("关系数据创建成功！共处理 %d 个条目\n", len(subjectRelations))
+}
+
+func updateSubjectRelations(ids []int, token string) {
+	fileData, err := ioutil.ReadFile("data/anime_relations.json")
+	if err != nil {
+		log.Fatalf("读取关系数据失败: %v", err)
+	}
+
+	var existingList []JsonSubjectRelationCollection
+	if err := json.Unmarshal(fileData, &existingList); err != nil {
+		log.Fatalf("JSON解析失败: %v", err)
+	}
+
+	existingIDMap := make(map[int]*JsonSubjectRelationCollection)
+	for i := range existingList {
+		existingIDMap[existingList[i].OriginalID] = &existingList[i]
+	}
+
+	newRelations := fetchRelationsByIdList(ids, token)
+
+	for _, newRel := range newRelations {
+		if existingRel, exists := existingIDMap[newRel.OriginalID]; exists {
+			*existingRel = newRel
+		} else {
+			existingList = append(existingList, newRel)
+		}
+	}
+
+	output, err := json.MarshalIndent(existingList, "", "  ")
+	if err != nil {
+		log.Fatalf("JSON生成失败: %v", err)
+	}
+	if err := os.WriteFile("data/anime_relations.json", output, 0644); err != nil {
+		log.Fatalf("文件写入失败: %v", err)
+	}
+	fmt.Printf("关系数据更新成功！现有条目数: %d\n", len(existingList))
 }

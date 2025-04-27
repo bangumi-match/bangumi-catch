@@ -84,3 +84,18 @@ type JsonSubjectPersonCollection struct {
 	ProjectID          int                 `json:"project_id"`
 	OriginalID         int                 `json:"id"`
 }
+
+type JsonSubjectRelation struct {
+	Images   Images `json:"images"`
+	Name     string `json:"name"`
+	NameCn   string `json:"name_cn"`
+	Relation string `json:"relation"`
+	Type     int    `json:"type"`
+	ID       int    `json:"id"`
+}
+
+type JsonSubjectRelationCollection struct {
+	JsonSubjectRelations []JsonSubjectRelation `json:"relations"`
+	ProjectID            int                   `json:"project_id"`
+	OriginalID           int                   `json:"id"`
+}

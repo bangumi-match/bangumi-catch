@@ -4,13 +4,24 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
 
 	. "bgm-catch/internal/basic"
 )
+
+const tips = "请选择以下选项：\n" +
+	"CA（创建动画）\n" +
+	"UA（更新动画）\n" +
+	"DA（日期范围更新/下载动画）\n" +
+	"R（重新映射ID）\n" +
+	"CS（下载Staff）\n" +
+	"AS（根据Anime Lite下载全部对应Staff）\n" +
+	"US（使用动画ID更新Staff）\n" +
+	"CR（使用动画ID下载关系数据）\n" +
+	"AR（下载全部动画的关系数据）\n" +
+	"UR（更新关系数据）"
 
 func Main() {
 	logFile, err := initLog()
@@ -26,12 +37,12 @@ func Main() {
 
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("请选择模式(C=创建 / U=更新 / D=日期范围更新 / R=重新映射 / P=下载Person / AP=根据Anime Lite下载Person / UP=update person): ")
+	fmt.Print(tips)
 	mode, _ := reader.ReadString('\n')
 	mode = strings.TrimSpace(mode)
 
 	switch strings.ToUpper(mode) {
-	case "C", "CREATE":
+	case "CA", "CREATE", "CREATE_ANIME":
 		// 创建模式处理
 		fmt.Print("请输入ID列表（例如：1,2,5-10,12）: ")
 		idInput, _ := reader.ReadString('\n')
@@ -48,7 +59,7 @@ func Main() {
 		}
 		updateRemap(existingList)
 
-	case "U", "UPDATE":
+	case "UA", "UPDATE", "UPDATE_ANIME":
 		// 更新模式处理
 		fmt.Print("请输入ID列表（例如：1,2,5-10,12）或输入'all'更新全部条目: ")
 		idInput, _ := reader.ReadString('\n')
@@ -79,7 +90,7 @@ func Main() {
 		}
 		updateRemap(existingList)
 
-	case "D", "DATE":
+	case "DA", "DATE", "DATE_ANIME":
 		fmt.Print("请输入起始年月（格式：YYYY-MM）: ")
 		startInput, _ := reader.ReadString('\n')
 		startInput = strings.TrimSpace(startInput)
@@ -130,7 +141,7 @@ func Main() {
 		if err != nil {
 			log.Fatalf("JSON生成失败: %v", err)
 		}
-		if err := ioutil.WriteFile("data/anime.json", output, 0644); err != nil {
+		if err := os.WriteFile("data/anime.json", output, 0644); err != nil {
 			log.Fatalf("文件写入失败: %v", err)
 		}
 		fmt.Printf("日期范围更新成功！现有条目数: %d\n", len(existingList))
@@ -144,9 +155,9 @@ func Main() {
 		}
 		updateRemap(existingList)
 
-	case "P", "PERSON":
+	case "CS", "CREATE_STAFF":
 		// 下载Person数据
-		fmt.Print("请输入ID列表（例如：1,2,5-10,12）: ")
+		fmt.Print("请输入下载Staff的动画ID列表（例如：1,2,5-10,12）: ")
 		idInput, _ := reader.ReadString('\n')
 		idInput = strings.TrimSpace(idInput)
 
@@ -156,7 +167,7 @@ func Main() {
 		}
 		createSubjectPerson(ids, token)
 
-	case "AP", "ANIME_PERSON":
+	case "AS", "ALL_STAFF":
 		// 根据Anime Lite下载Person数据
 		existingList, err := readExistingSubjects()
 		if err != nil {
@@ -169,7 +180,7 @@ func Main() {
 		}
 		createSubjectPerson(ids, token)
 
-	case "UP", "UPDATE_PERSON":
+	case "US", "UPDATE_STAFF":
 		// 更新Person数据
 		fmt.Print("请输入ID列表（例如：1,2,5-10,12）: ")
 		idInput, _ := reader.ReadString('\n')
@@ -181,7 +192,40 @@ func Main() {
 		}
 		updateSubjectPerson(ids, token)
 
+	case "CR", "CREATE_RELATION":
+		fmt.Print("请输入ID列表（例如：1,2,5-10,12）: ")
+		idInput, _ := reader.ReadString('\n')
+		idInput = strings.TrimSpace(idInput)
+
+		ids, err := ParseIDList(idInput)
+		if err != nil {
+			log.Fatalf("ID列表解析失败: %v", err)
+		}
+		createSubjectRelations(ids, token)
+	case "AR", "ALL_RELATIONS":
+		existingList, err := readExistingSubjects()
+		if err != nil {
+			log.Fatalf("读取基础数据失败: %v", err)
+		}
+
+		var ids []int
+		for _, item := range existingList {
+			ids = append(ids, item.OriginalID)
+		}
+		createSubjectRelations(ids, token)
+	case "UR", "UPDATE_RELATION":
+		fmt.Print("请输入ID列表（例如：1,2,5-10,12）: ")
+		idInput, _ := reader.ReadString('\n')
+		idInput = strings.TrimSpace(idInput)
+
+		ids, err := ParseIDList(idInput)
+		if err != nil {
+			log.Fatalf("ID列表解析失败: %v", err)
+		}
+		updateSubjectRelations(ids, token)
+
 	default:
-		log.Fatal("无效模式选择，请选择C（创建）/U（更新）/D（日期范围更新）/R（重新映射）/F（Fix Project IDs）/P（下载Person）/AP（根据Anime Lite下载Person）/UP（更新Person）")
+		println("无效模式选择，请选择以下选项：\n%s", tips)
+		log.Fatal("无效模式选择")
 	}
 }
